@@ -43,8 +43,54 @@
     li {
         background-color: #e9e9e9;
         margin: 5px 0;
-        padding: 10px;
+        padding: 0;
         border-radius: 5px;
+        overflow: hidden;
+    }
+
+    .accordion-header {
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        user-select: none;
+    }
+
+    .accordion-header:hover {
+        background-color: #dcdcdc;
+    }
+
+    .accordion-header .arrow {
+        display: inline-block;
+        transition: transform 0.2s ease;
+        margin-left: 10px;
+    }
+
+    .accordion-header.active .arrow {
+        transform: rotate(90deg);
+    }
+
+    .accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        background-color: #fff;
+    }
+
+    .accordion-content ul {
+        margin: 0;
+        padding: 10px;
+    }
+
+    .accordion-content li {
+        background-color: #f9f9f9;
+        border-radius: 3px;
+    }
+
+    .incident-date {
+        font-weight: 600;
+        margin-right: 8px;
     }
 </style>
 </head>
@@ -104,7 +150,15 @@
                     countyDiv.innerHTML = `<h2>${countyData[0][4]}: ${countyData.length} incidents</h2>`;
                     const list = document.createElement('ul');
                     for (const attributes of countyData) {
-                        statistics[attributes[2]] = (statistics[attributes[2]] || 0) + 1;
+                        const incidentType = attributes[2];
+                        if (statistics[incidentType] == undefined) {
+                            statistics[incidentType] = [];
+                        }
+                        statistics[incidentType].push({
+                            date: attributes[0],
+                            title: attributes[3],
+                            area: attributes[4],
+                        });
                         if (attributes[0] < earliest) {
                             earliest = attributes[0];
                         }
@@ -112,9 +166,48 @@
                             latest = attributes[0];
                         }
                     }
-                    for (const [incidentType, count] of Object.entries(statistics)) {
+                    for (const [incidentType, incidents] of Object.entries(statistics)) {
+                        incidents.sort((a, b) => (a.date < b.date ? 1 : -1));
+
                         const listItem = document.createElement('li');
-                        listItem.textContent = `${incidentType}: ${count}`;
+
+                        const header = document.createElement('div');
+                        header.className = 'accordion-header';
+                        header.innerHTML = `<span>${incidentType}: ${incidents.length}</span><span class="arrow">&#9656;</span>`;
+
+                        const contentWrapper = document.createElement('div');
+                        contentWrapper.className = 'accordion-content';
+
+                        const incidentList = document.createElement('ul');
+                        for (const incident of incidents) {
+                            const incidentItem = document.createElement('li');
+                            incidentItem.innerHTML = `<span class="incident-date">${incident.date.split('T')[0]}</span>${incident.title}`;
+                            incidentList.appendChild(incidentItem);
+                        }
+                        contentWrapper.appendChild(incidentList);
+
+                        header.addEventListener('click', () => {
+                            const isOpen = header.classList.toggle('active');
+                            if (isOpen) {
+                                contentWrapper.style.maxHeight = contentWrapper.scrollHeight + 'px';
+                            } else {
+                                // collapse from the actual rendered height, in case it was left as 'none'
+                                contentWrapper.style.maxHeight = contentWrapper.scrollHeight + 'px';
+                                requestAnimationFrame(() => {
+                                    contentWrapper.style.maxHeight = null;
+                                });
+                            }
+                        });
+
+                        contentWrapper.addEventListener('transitionend', () => {
+                            if (header.classList.contains('active')) {
+                                // let the panel grow/shrink freely after opening (e.g. late web-font reflow)
+                                contentWrapper.style.maxHeight = 'none';
+                            }
+                        });
+
+                        listItem.appendChild(header);
+                        listItem.appendChild(contentWrapper);
                         list.appendChild(listItem);
                     }
                     countyDiv.appendChild(list);
